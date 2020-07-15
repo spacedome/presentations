@@ -1,0 +1,344 @@
+\documentclass[mathserif]{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{mathtools}
+\usepackage{amsthm}
+\usepackage{algorithmic}
+
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.16}
+\usepgfplotslibrary{colorbrewer}
+
+
+\pgfplotsset{every axis/.append style={
+            		width=2.5in,
+            		grid=both,
+                    label style={font=\footnotesize},
+                    tick label style={font=\footnotesize},
+            		cycle list/Set1-5,
+            		cycle multiindex* list={
+            		    Set1-5
+            		    \nextlist
+                        marks
+                        \nextlist
+                        [2 of]linestyles
+                        \nextlist
+            		    thick
+            		    \nextlist
+                    },
+            }
+}
+
+\pgfplotsset{
+    % define a `cycle list' for marker
+    cycle list/.define={marks}{
+	    every mark/.append style={solid,fill opacity=0.25,fill=\pgfkeysvalueof{/pgfplots/mark list fill}},mark=*\\
+	    every mark/.append style={solid,fill opacity=0.25,fill=\pgfkeysvalueof{/pgfplots/mark list fill}},mark=square*\\
+	    every mark/.append style={solid,fill opacity=0.25,fill=\pgfkeysvalueof{/pgfplots/mark list fill}},mark=triangle*\\
+	    every mark/.append style={solid,fill opacity=0.25,fill=\pgfkeysvalueof{/pgfplots/mark list fill}},mark=diamond*\\
+    },
+}
+
+\usetheme{default}
+\usecolortheme{beaver}
+
+\title{An Iterative Method for Contour Based Nonlinear Eigensolvers}
+\author{Julien Brenneck \and Eric Polizzi}
+\date{}
+%\subject{Numerical Linear Algebra}
+
+\beamertemplatenavigationsymbolsempty{}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+\begin{frame}
+ \titlepage{}
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Previous Techniques}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}{Beyn's Method}
+
+	Use Keldysh theorem to probe Jordan decomposition for spectral information, giving a linearization of \(T(\lambda)\).
+
+	\begin{align}
+		A_k = \frac{1}{2 \pi i} \int_\Gamma z^k {T(z)}^{-1} X \, dz 
+		= V \Lambda^k W^H X
+	\end{align}
+	Taking the SVD \( A_0 = V_0 \Sigma_0 W_0^H \) we can derive the following (computable) similarity.
+	\begin{align}
+		\Lambda \sim V_0^H A_1 W_0 \Sigma_0^{-1}
+	\end{align}
+	This gives a standard problem \(  V_0^H A_1 W_0 \Sigma_0^{-1} Y = Y \Lambda\), taking \( X = V_0 Y  \) recovers eigenvectors.
+
+\end{frame}
+
+\begin{frame}{NLFEAST}
+
+	Applying a Residual Inverse Iteration with contour points as fixed shifts gives a Newton-type iteration. 
+
+	\begin{align}
+		Q_0 = \frac{1}{2 \pi i } \int_\Gamma \Big(X - {T(z)}^{-1} T(X, \Lambda) \Big) {(zI - \Lambda)}^{-1} \, dz
+	\end{align}
+	Each iteration solve the projected problem.
+	\begin{align}
+		Q_0^H T(\lambda) Q_0 y = 0
+	\end{align}
+	Recover eigenvectors by taking \( X = Q_0 Y \).
+
+\end{frame}
+
+\begin{frame}{Problems}
+
+	\begin{itemize}
+		\item How to share contour nodes (and thus linear system solves) when using NLFEAST with Beyn?
+		\vspace{2em}
+
+		\item How can Beyn's method be iteratively refined? Doing so would address drawbacks of using many quadrature points.
+	\end{itemize}
+
+\end{frame}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Hybrid Algorithm}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}{NLFEAST-Beyn Hybrid Algorithm}
+	We can generalize the RII moment \( Q_0 \) of NLFEAST to \( Q_k \).	
+	\begin{align}
+		Q_k = \frac{1}{2 \pi i } \int_\Gamma z^k \Big(X - {T(z)}^{-1} T(X, \Lambda) \Big) {(zI - \Lambda)}^{-1} \, dz
+	\end{align}
+	Then apply the linearization of Beyn's method to these moments.
+
+\end{frame}
+
+\begin{frame}{NLFEAST-Beyn Hybrid Algorithm}
+
+      \begin{algorithmic}
+	%\REQUIRE{Initial (random) subspace \( X \in \mathbb{C}^{n \times m}\)}
+	%\REQUIRE{Contour \( \Gamma \) and \( N \) quadrature nodes and weights \( (z_j, \omega_j) \)}
+	%\REQUIRE{Stopping tolerence \( \epsilon \)}
+	\STATE{\(Q_0 = \sum_{j=1}^{N} \omega_j {T(z_j)}^{-1} X \)}
+	\STATE{\(Q_1 = \sum_{j=1}^{N} \omega_j z_j {T(z_j)}^{-1} X \)}
+	\STATE{Compute the QR Decomposition \( qr \leftarrow Q_0\)}
+	\STATE{\( B = q^H Q_1 r^{-1} \)}
+	\STATE{Solve \( BY = Y \Lambda \)}
+	\STATE{ \( X \leftarrow qY \)}
+	\WHILE{not converged}
+\STATE{\(Q_0 \leftarrow \sum_{j=1}^{N} \omega_j [X - {T(z_j)}^{-1}T(X, \Lambda)] {(z_j I - \Lambda)}^{-1} \)}
+\STATE{\(Q_1 \leftarrow \sum_{j=1}^{N} \omega_j z_j [X  - {T(z_j)}^{-1} T(X, \Lambda)] {(z_j I - \Lambda)}^{-1} \)}
+	\STATE{Compute the QR Decomposition \( qr \leftarrow Q_0\)}
+	\STATE{\( B \leftarrow q^H Q_1 r^{-1} \)}
+	\STATE{Solve \( BY = Y \Lambda \)}
+	\STATE{ \( X \leftarrow qY \)}
+	\ENDWHILE
+	\RETURN \( X, \Lambda \)
+      \end{algorithmic}
+      
+\end{frame}
+
+\begin{frame}{NLFEAST-Beyn Hybrid Algorithm}
+	\begin{itemize}
+		\item From one perspective, this can be viewed as NLFEAST using the linearization (from Keldysh) of Beyn's method directly.
+			\vspace{2em}
+		\item From the other, it can be viewed as Beyn's method using the RII (from Neumaier) approach of NLFEAST.\@
+			\vspace{2em}
+		\item Can be reduced to standard FEAST for linear problems.
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{Higher Moments}
+	
+	Necessary to use higher moments for eigenvector defects or many eigenvalues in a contour.
+	\vspace{1em}
+
+	General way of considering most higher moment algorithms by considering ``left probing matrix'' \( \widehat{X} \in \mathbb{C}^{n\times \ell} \) in addition to ``right probing matrix'' \( X \in \mathbb{C}^{n\times m} \) and defining
+	\begin{align}
+		\widehat{A}_k = \widehat{X}^H A_k
+		= \frac{1}{2 \pi i} \int_{\Gamma} z^k \widehat{X}^H {T(z)}^{-1} X \, dz.
+	\end{align}
+
+
+\end{frame}
+
+\begin{frame}{Higher Moment Matrix}
+	Choosing \( K \in \mathbb{N} \) as the number of computed moments, form the \( K \ell \times K m \) block Hankel matrices
+	\begin{align}
+		H_0 = 
+		\begin{bmatrix}
+			\widehat{A}_0      & \cdots & \widehat{A}_{K-1}  \\
+			\vdots             &        & \vdots \\
+			\widehat{A}_{K-1}  & \cdots & \widehat{A}_{2K-2} 
+		\end{bmatrix},
+		H_1 = 
+		\begin{bmatrix}
+			\widehat{A}_1      & \cdots & \widehat{A}_{K}  \\
+			\vdots             &        & \vdots \\
+			\widehat{A}_{K}    & \cdots & \widehat{A}_{2K-1} 
+		\end{bmatrix}.
+	\end{align}
+	From the Keldysh theorem we have \( \widehat{A}_k = \widehat{X}V\Lambda^k W^H X \), letting
+	\begin{align}
+		V_{[K]} = 
+		\begin{bmatrix}
+			\widehat{X}V \\
+			\vdots \\
+			\widehat{X} V \Lambda^{K-1}
+		\end{bmatrix},
+		\quad
+		W^H_{[K]} = \big[W^HX, \ldots, \Lambda^{K-1} W^H X \big]
+	\end{align}
+	we have, similarly to before with \( A_0\) and \(A_1 \), that 
+	\begin{align}
+		H_0 = V_{[K]}W^H_{[K]}, \quad
+		H_1 = V_{[K]} \Lambda W^H_{[K]}.
+	\end{align}
+\end{frame}
+
+\begin{frame}{Higher Moment Methods}
+	Using the same similarity as Beyn's method, taking the SVD \( H_0 = V_0 \Sigma_0 W^H_0 \), we can diagonalize \( V_0^H H_1 W_0 \Sigma_0^{-1} \) to find \( \Lambda \).
+	Recovering the eigenvectors depends on the form of \( \widehat{X} \).
+	\vspace{1em}
+	\begin{itemize}
+		\item Taking \( \widehat{X} = I \in \mathbb{C}^{n \times n} \) gives Beyn's method.
+			\vspace{1em}
+		\item Taking \( \widehat{X} = X \) gives the SS-Hankel method.
+			Here \( H_0, H_1 \) are square and another approach is need to recover eigenvectors.
+
+	\end{itemize}
+
+	\vspace{1em}
+	For \( \widehat{X}=I \) (thus \( \widehat{A}_k = A_k \)) we have applied the RII method.
+	This requires deflating the subspace after every iteration.
+
+\end{frame}
+
+\begin{frame}{Problems with Higher Moments}
+
+	\begin{itemize}
+		\item Eigenvectors (potentially) only recoverable in special cases, limiting iteration to Beyn and SS type methods.
+			\vspace{1em}
+		\item SS-Hankel approach has benefits, but not yet explored.
+			\vspace{1em}
+		\item Deflation after every iteration limits number of eigenvalues. Unclear how RII can be modified to reuse all spectral information after iteration.
+			\vspace{1em}
+		\item No way to determine when there are deficient eigenvectors without computing many higher moments.
+			\vspace{1em}
+		
+	\end{itemize}
+
+	
+\end{frame}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Experimental Results}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{frame}{Numerical Experiments}
+    \centering Hadeler Problem	
+    \vspace{1em}
+    \begin{figure}[htbp]
+            \centering
+	    \begin{tikzpicture}[scale=0.8]
+            \begin{axis}[
+                    legend style={font=\scriptsize, fill opacity=0.9},
+                    unbounded coords=jump,
+                    ymode=log,
+                    xmax=10,
+                    xmin=0.5,
+                    xtick=data,
+                    xlabel={Iteration},
+                    ymin=1.0e-18,
+                    ylabel={Residual},
+                    extra x ticks={1},
+                    extra x tick labels={{\scriptsize(Beyn)}},
+                    extra x tick style={{yshift=-2ex, grid=none}},
+                    legend entries={\(N=4\), \(N=8\), \(N=16\), \(N=32\), \(N=64\), \(N=128\), \(N=256\) } ]
+                    \addplot table [x=iter, y=$2$] {hadeler.dat};
+                    \addplot table [x=iter, y=$3$] {hadeler.dat};
+                    \addplot table [x=iter, y=$4$] {hadeler.dat};
+                    \addplot table [x=iter, y=$5$] {hadeler.dat};
+                    \addplot table [x=iter, y=$6$] {hadeler.dat};
+                    \addplot table [x=iter, y=$7$] {hadeler.dat};
+                    \fill [blue, fill opacity=0.1] (0.5, 10.0) rectangle (1.5, 5.0e-19);
+            \end{axis}
+            \end{tikzpicture}
+	    \begin{tikzpicture}[scale=0.8]
+            \begin{axis}[
+                    xlabel={Real},
+                    ylabel={Imaginary},
+                    xmin=-48,
+                    xmax=-12,
+                    ymin=-15,
+                    ymax=15
+                    ]
+                    \draw[dashed, thick] (axis cs:-30.0,0.0) circle [radius=10.0];
+                    \addplot+ [only marks] table {hadeler_eig_in.dat};
+                    \addplot+ [only marks, mark=*, mark options={solid, scale=0.35}] table {hadeler_eig.dat};
+            \end{axis}
+            \end{tikzpicture}
+    \end{figure}
+
+\end{frame}
+
+\begin{frame}{Numerical Experiments}
+
+    \centering Butterfly Problem	
+    \vspace{1em}
+
+    \begin{figure}[htbp]
+            \centering
+	    \begin{tikzpicture}[scale=0.8]
+            \begin{axis}[
+                    ymode=log,
+                    xmin=0.5,
+                    xmax=13,
+                    xtick=data,
+                    unbounded coords=jump,
+                    legend style={font=\scriptsize, fill opacity=0.9},
+                    xlabel={Iteration},
+                    ymin=5.0e-17,
+                    ylabel={Residual},
+                    ymin=5.0e-17,
+                    extra x ticks={1},
+                    extra x tick labels={{\scriptsize(Beyn)}},
+                    extra x tick style={{yshift=-2ex, grid=none}},
+                    legend entries={\(N=4\), \(N=8\), \(N=16\), \(N=32\), \(N=64\), \(N=128\), \(N=256\) } ]
+                    \addplot table [x=iter, y=$2$] {bf.dat};
+                    \addplot table [x=iter, y=$3$] {bf.dat};
+                    \addplot table [x=iter, y=$4$] {bf.dat};
+                    \addplot table [x=iter, y=$5$] {bf.dat};
+                    \addplot table [x=iter, y=$6$] {bf.dat};
+                    \addplot table [x=iter, y=$7$] {bf.dat};
+                    \addplot table [x=iter, y=$8$] {bf.dat};
+                    \fill [blue, fill opacity=0.1] (0.5, 10.0) rectangle (1.5, 5.0e-17);
+            \end{axis}
+            \end{tikzpicture}
+            \begin{tikzpicture}[scale=0.8]
+            \begin{axis}[
+                    xlabel={Real},
+                    ylabel={Imaginary},
+                    xmin=0,
+                    xmax=2,
+                    ymin=0,
+                    ymax=2]
+                    \draw [dashed, thick] (axis cs:1.0,1.0) circle [radius=0.5];
+                    \addplot+ [only marks] table {bf_eig_in.dat};
+                    \addplot+ [only marks, mark=*, mark options={solid, scale=0.35}] table {bf_eig.dat};
+            \end{axis}
+            \end{tikzpicture}
+    \end{figure}
+
+  
+\end{frame}
+
+\end{document}
